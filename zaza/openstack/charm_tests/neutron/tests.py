@@ -21,6 +21,7 @@ import logging
 import unittest
 
 import zaza
+import neutronclient.common.exceptions as neutron_exceptions
 import zaza.openstack.charm_tests.glance.setup as glance_setup
 import zaza.openstack.charm_tests.nova.utils as nova_utils
 import zaza.openstack.charm_tests.test_utils as test_utils
@@ -30,6 +31,106 @@ import zaza.openstack.utilities.openstack as openstack_utils
 
 class NeutronApiTest(test_utils.OpenStackBaseTest):
     """Test basic Neutron API Charm functionality."""
+
+    RESOURCE_PREFIX = 'zaza-NeutronApiTest'
+
+    @classmethod
+    def setUpClass(cls):
+        """Run setup for test class to create common resourcea."""
+        super(NeutronApiTest, cls).setUpClass()
+        cls.keystone_session = openstack_utils.get_overcloud_keystone_session()
+        cls.keystone_client = openstack_utils.get_keystone_session_client(
+            cls.keystone_session, client_api_version=3)
+        cls.neutron_client = openstack_utils.get_neutron_session_client(
+            cls.keystone_session)
+
+    @classmethod
+    def tearDown(cls):
+        """Remove test resources."""
+        logging.info('Running teardown')
+        for user in cls.keystone_client.users.list():
+            if user.name.startswith(cls.RESOURCE_PREFIX):
+                openstack_utils.delete_resource(
+                    cls.keystone_client.users,
+                    user.id,
+                    msg="user")
+        for project in cls.keystone_client.projects.list():
+            if user.name.startswith(cls.RESOURCE_PREFIX):
+                openstack_utils.delete_resource(
+                    cls.keystone_client.projects,
+                    project.id,
+                    msg="project")
+        for domain in cls.keystone_client.domains.list():
+            if domain.name.startswith(cls.RESOURCE_PREFIX):
+                cls.keystone_client.domains.update(domain.id, enabled=False)
+                openstack_utils.delete_resource(
+                    cls.keystone_client.domains,
+                    domain.id,
+                    msg="domain")
+        for network in cls.neutron_client.list_networks()['networks']:
+            if network['name'].startswith(cls.RESOURCE_PREFIX):
+                # TODO openstack_utils.delete_resource does not currently
+                # support neutron resources.
+                cls.neutron_client.delete_network(network['id'])
+
+    def test_project_admin_is_not_cloud_admin(self):
+        """Check that a project admin does not have cloud admin privileges.
+           Bug: #1830536
+        """
+        xenial_queens = openstack_utils.get_os_release('xenial_queens')
+        if openstack_utils.get_os_release() < xenial_queens:
+            raise unittest.SkipTest('Test skipped pre Queens')
+        # Setup a user who is not a cloud admin.
+        user_creds = {
+            'OS_USERNAME': self.RESOURCE_PREFIX + '-user',
+            'OS_PASSWORD': self.RESOURCE_PREFIX + 'password',
+            'OS_AUTH_URL': openstack_utils.get_overcloud_auth()['OS_AUTH_URL'],
+            'OS_USER_DOMAIN_NAME': self.RESOURCE_PREFIX + '-domain',
+            'OS_PROJECT_DOMAIN_NAME': self.RESOURCE_PREFIX + '-domain',
+            'OS_PROJECT_NAME': self.RESOURCE_PREFIX + '-project',
+            'API_VERSION': 3,
+        }
+        domain = self.keystone_client.domains.create(
+            user_creds['OS_USER_DOMAIN_NAME'],
+            description='Zaza Bug Domain',
+            enabled=True)
+        project = self.keystone_client.projects.create(
+            user_creds['OS_PROJECT_NAME'],
+            domain,
+            description='Zaza Bug Project',
+            enabled=True)
+        user = self.keystone_client.users.create(
+            user_creds['OS_USERNAME'],
+            domain=domain,
+            project=project,
+            password=user_creds['OS_PASSWORD'],
+            email='zazabuguser@demo.com',
+            description='Zaza Bug User',
+            enabled=True)
+        admin_role = self.keystone_client.roles.find(name='Admin')
+        self.keystone_client.roles.grant(
+            admin_role,
+            user=user,
+            project_domain=domain,
+            project=project)
+        # Create a network as an admin so that we can check user who is not a
+        # cloud admin cannot update it.
+        admin_net_id = self.neutron_client.create_network({
+            'network': {
+                'name': self.RESOURCE_PREFIX + '-network'}})['network']['id']
+        user_session = openstack_utils.get_keystone_session(
+            user_creds,
+            scope='PROJECT')
+        user_neutron_client = openstack_utils.get_neutron_session_client(
+            user_session)
+        body_data = {
+            'network': {
+                "admin_state_up": False}}
+        # Assert a user who is not a cloud admin cannot update a network it
+        # does not own.
+        with self.assertRaises(neutron_exceptions.NetworkNotFoundClient):
+            user_neutron_client.update_network(
+                admin_net_id, body=body_data)
 
     def test_900_restart_on_config_change(self):
         """Checking restart happens on config change.
