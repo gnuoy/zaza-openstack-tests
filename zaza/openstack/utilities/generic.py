@@ -322,7 +322,8 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
         series_upgrade(leader, machine,
                        from_series=from_series, to_series=to_series,
                        origin=origin, workaround_script=workaround_script,
-                       files=files)
+                       files=files,
+                       post_upgrade_functions=post_upgrade_functions)
         run_post_upgrade_functions(post_upgrade_functions)
         completed_machines.append(machine)
     else:
@@ -342,7 +343,8 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
             series_upgrade(unit, machine,
                            from_series=from_series, to_series=to_series,
                            origin=origin, workaround_script=workaround_script,
-                           files=files)
+                           files=files,
+                           post_upgrade_functions=post_upgrade_functions)
             run_post_upgrade_functions(post_upgrade_functions)
             completed_machines.append(machine)
         else:
@@ -357,7 +359,8 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
 def series_upgrade(unit_name, machine_num,
                    from_series="trusty", to_series="xenial",
                    origin='openstack-origin',
-                   files=None, workaround_script=None):
+                   files=None, workaround_script=None,
+                   post_upgrade_functions=None):
     """Perform series upgrade on a unit.
 
     :param unit_name: Unit Name
@@ -408,6 +411,7 @@ def series_upgrade(unit_name, machine_num,
     logging.info("Complete series upgrade on {}".format(machine_num))
     model.complete_series_upgrade(machine_num)
     model.block_until_all_units_idle()
+    run_post_upgrade_functions(post_upgrade_functions)
     logging.info("Waiting for workload status 'active' on {}"
                  .format(unit_name))
     model.block_until_unit_wl_status(unit_name, "active")
