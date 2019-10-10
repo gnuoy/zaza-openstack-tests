@@ -25,6 +25,7 @@ from zaza import model
 from zaza.openstack.utilities import juju as juju_utils
 from zaza.openstack.utilities import exceptions as zaza_exceptions
 from zaza.openstack.utilities.os_versions import UBUNTU_OPENSTACK_RELEASE
+from zaza.utilities import cli as cli_utils
 
 
 SUBORDINATE_PAUSE_RESUME_BLACKLIST = [
@@ -177,9 +178,17 @@ def get_yaml_config(config_file):
     return yaml.safe_load(open(config_file, 'r').read())
 
 
+def run_post_upgrade_functions(post_upgrade_functions):
+    if post_upgrade_functions:
+        for func in post_upgrade_functions:
+            logging.info("Running {}".format(func))
+            cli_utils.get_class(func)()
+
+
 def series_upgrade_non_leaders_first(application, from_series="trusty",
                                      to_series="xenial",
-                                     completed_machines=[]):
+                                     completed_machines=[],
+                                     post_upgrade_functions=None):
     """Series upgrade non leaders first.
 
     Wrap all the functionality to handle series upgrade for charms
@@ -215,6 +224,7 @@ def series_upgrade_non_leaders_first(application, from_series="trusty",
             series_upgrade(unit, machine,
                            from_series=from_series, to_series=to_series,
                            origin=None)
+            run_post_upgrade_functions(post_upgrade_functions)
             completed_machines.append(machine)
         else:
             logging.info("Skipping unit: {}. Machine: {} already upgraded. "
@@ -228,6 +238,7 @@ def series_upgrade_non_leaders_first(application, from_series="trusty",
         series_upgrade(leader, machine,
                        from_series=from_series, to_series=to_series,
                        origin=None)
+        run_post_upgrade_functions(post_upgrade_functions)
         completed_machines.append(machine)
     else:
         logging.info("Skipping unit: {}. Machine: {} already upgraded."
@@ -240,7 +251,8 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
                                from_series="trusty", to_series="xenial",
                                origin='openstack-origin',
                                completed_machines=[],
-                               files=None, workaround_script=None):
+                               files=None, workaround_script=None,
+                               post_upgrade_functions=None):
     """Series upgrade application.
 
     Wrap all the functionality to handle series upgrade for a given
@@ -311,6 +323,7 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
                        from_series=from_series, to_series=to_series,
                        origin=origin, workaround_script=workaround_script,
                        files=files)
+        run_post_upgrade_functions(post_upgrade_functions)
         completed_machines.append(machine)
     else:
         logging.info("Skipping unit: {}. Machine: {} already upgraded."
@@ -330,6 +343,7 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
                            from_series=from_series, to_series=to_series,
                            origin=origin, workaround_script=workaround_script,
                            files=files)
+            run_post_upgrade_functions(post_upgrade_functions)
             completed_machines.append(machine)
         else:
             logging.info("Skipping unit: {}. Machine: {} already upgraded. "
