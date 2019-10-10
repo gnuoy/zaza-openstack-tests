@@ -223,7 +223,8 @@ def series_upgrade_non_leaders_first(application, from_series="trusty",
                          .format(unit))
             series_upgrade(unit, machine,
                            from_series=from_series, to_series=to_series,
-                           origin=None)
+                           origin=None,
+                           post_upgrade_functions=post_upgrade_functions)
             run_post_upgrade_functions(post_upgrade_functions)
             completed_machines.append(machine)
         else:
@@ -237,8 +238,8 @@ def series_upgrade_non_leaders_first(application, from_series="trusty",
     if machine not in completed_machines:
         series_upgrade(leader, machine,
                        from_series=from_series, to_series=to_series,
-                       origin=None)
-        run_post_upgrade_functions(post_upgrade_functions)
+                       origin=None,
+                       post_upgrade_functions=post_upgrade_functions)
         completed_machines.append(machine)
     else:
         logging.info("Skipping unit: {}. Machine: {} already upgraded."
@@ -324,7 +325,6 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
                        origin=origin, workaround_script=workaround_script,
                        files=files,
                        post_upgrade_functions=post_upgrade_functions)
-        run_post_upgrade_functions(post_upgrade_functions)
         completed_machines.append(machine)
     else:
         logging.info("Skipping unit: {}. Machine: {} already upgraded."
@@ -345,7 +345,6 @@ def series_upgrade_application(application, pause_non_leader_primary=True,
                            origin=origin, workaround_script=workaround_script,
                            files=files,
                            post_upgrade_functions=post_upgrade_functions)
-            run_post_upgrade_functions(post_upgrade_functions)
             completed_machines.append(machine)
         else:
             logging.info("Skipping unit: {}. Machine: {} already upgraded. "
