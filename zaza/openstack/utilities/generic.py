@@ -25,8 +25,7 @@ from zaza import model
 from zaza.openstack.utilities import juju as juju_utils
 from zaza.openstack.utilities import exceptions as zaza_exceptions
 from zaza.openstack.utilities.os_versions import UBUNTU_OPENSTACK_RELEASE
-from zaza.utilities import cli as cli_utils
-
+from zaza.charm_lifecycle import utils as cl_utils
 
 SUBORDINATE_PAUSE_RESUME_BLACKLIST = [
     "cinder-ceph",
@@ -182,7 +181,7 @@ def run_post_upgrade_functions(post_upgrade_functions):
     if post_upgrade_functions:
         for func in post_upgrade_functions:
             logging.info("Running {}".format(func))
-            cli_utils.get_class(func)()
+            cl_utils.get_class(func)()
 
 
 def series_upgrade_non_leaders_first(application, from_series="trusty",
