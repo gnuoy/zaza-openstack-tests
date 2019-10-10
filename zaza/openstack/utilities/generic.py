@@ -411,6 +411,8 @@ def series_upgrade(unit_name, machine_num,
     logging.info("Complete series upgrade on {}".format(machine_num))
     model.complete_series_upgrade(machine_num)
     model.block_until_all_units_idle()
+    logging.info("Running run_post_upgrade_functions {}".format(
+        post_upgrade_functions))
     run_post_upgrade_functions(post_upgrade_functions)
     logging.info("Waiting for workload status 'active' on {}"
                  .format(unit_name))
