@@ -25,6 +25,39 @@ import zaza.openstack.utilities.cert
 import zaza.openstack.utilities.openstack
 
 
+class VaultCharmClient:
+
+    def __init__(self, cacert=None, initialize=True):
+        self.clients = vault_utils.get_clients(cacert=cacert)
+        self.vip_client = vault_utils.get_vip_client(cacert=cacert)
+        if self.vip_client:
+            self.unseal_client = self.vip_client
+        else:
+            self.unseal_client = self.clients[0]
+        self.initialized = vault_utils.is_initialized(self.unseal_client)
+        if initialize:
+            self.initialize()
+
+    @property
+    def is_initialized(self):
+        return self.initialized
+
+    def initialize(self):
+        if self.is_initialized:
+            self.vault_creds = vault_utils.get_credentails()
+        else:
+            self.vault_creds = vault_utils.init_vault(self.unseal_client)
+            vault_utils.store_credentails(self.vault_creds)
+        self.initialized = vault_utils.is_initialized(self.unseal_client)
+
+    def unseal(self):
+        vault_utils.unseal_all(self.clients, self.vault_creds['keys'][0])
+
+    def authorize(self):
+        vault_utils.auth_all(self.clients, self.vault_creds['root_token'])
+        vault_utils.run_charm_authorize(self.vault_creds['root_token'])
+
+
 def basic_setup(cacert=None, unseal_and_authorize=False):
     """Run basic setup for vault tests.
 
@@ -33,26 +66,17 @@ def basic_setup(cacert=None, unseal_and_authorize=False):
     :param unseal_and_authorize: Whether to unseal and authorize vault.
     :type unseal_and_authorize: bool
     """
-    clients = vault_utils.get_clients(cacert=cacert)
-    vip_client = vault_utils.get_vip_client(cacert=cacert)
-    if vip_client:
-        unseal_client = vip_client
-    else:
-        unseal_client = clients[0]
-    initialized = vault_utils.is_initialized(unseal_client)
-    # The credentials are written to a file to allow the tests to be re-run
-    # this is mainly useful for manually working on the tests.
-    if initialized:
-        vault_creds = vault_utils.get_credentails()
-    else:
-        vault_creds = vault_utils.init_vault(unseal_client)
-        vault_utils.store_credentails(vault_creds)
-
-    # For use by charms or bundles other than vault
+    client = VaultCharmClient(cacert=cacert)
     if unseal_and_authorize:
-        vault_utils.unseal_all(clients, vault_creds['keys'][0])
-        vault_utils.auth_all(clients, vault_creds['root_token'])
-        vault_utils.run_charm_authorize(vault_creds['root_token'])
+        client.unseal()
+        client.authorize()
+
+
+def basic_setup_and_unseal(cacert=None):
+    client = VaultCharmClient(cacert=cacert)
+    client.unseal()
+    for unit in zaza.model.get_units('vault'):
+        zaza.model.run_on_unit(unit.name, './hooks/update-status')
 
 
 def auto_initialize(cacert=None, validation_application='keystone'):

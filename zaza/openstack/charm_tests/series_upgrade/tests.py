@@ -77,7 +77,8 @@ class SeriesUpgradeTest(unittest.TestCase):
                 pause_non_leader_subordinate = False
             if "vault" in applications[application]["charm"]:
                 post_upgrade_functions = [
-                    'zaza.openstack.charm_tests.vault.setup.basic_setup']
+                    ('zaza.openstack.charm_tests.vault.setup.'
+                     'basic_setup_and_unseal')]
             if ("mongodb" in applications[application]["charm"] or
                     "vault" in applications[application]["charm"]):
                 # Mongodb and vault need to run series upgrade
