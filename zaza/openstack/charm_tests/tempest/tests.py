@@ -53,3 +53,11 @@ class TempestSmokeTest():
             'run',
             '--smoke',
             '--config', 'tempest/etc/tempest.conf'])
+
+class TempestNoopTest():
+
+    test_runner = zaza.charm_lifecycle.test.DIRECT
+
+    def run(self):
+        print("Noop test")
+        return True
