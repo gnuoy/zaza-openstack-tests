@@ -151,9 +151,10 @@ def _svc_set_systemd_restart_mode(unit_name, service_name, mode, model_name):
          "/lib/systemd/system/{}.service'").format(mode, service_name),
         'systemctl daemon-reload']
     logging.info('Running {} on {}'.format(cmds, unit_name))
-    zaza.model.run_on_unit(
+    action_results = zaza.model.run_on_unit(
         unit_name, command=';'.join(cmds),
         model_name=model_name)
+    logging.info('Results: {}'.format(action_results))
 
 
 def simulate_compute_host_failure(unit_name, model_name):
