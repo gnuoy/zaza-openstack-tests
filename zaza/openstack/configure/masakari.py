@@ -19,6 +19,8 @@ and recovery.
 """
 
 import logging
+import openstack.exceptions as ostack_except
+import tenacity
 
 import zaza.model
 import zaza.openstack.utilities.openstack as openstack_utils
@@ -81,6 +83,28 @@ def create_segments(segment_number=1, host_assignment_method=None):
         masakari_client)
 
 
+@tenacity.retry(
+    wait=tenacity.wait_exponential(multiplier=2, max=60),
+    reraise=True, stop=tenacity.stop_after_attempt(5),
+    retry=tenacity.retry_if_exception_type(ostack_except.ConflictException))
+def enable_host(masakari_client, host, segment):
+    """Enable all hypervisor within masakari.
+
+    :param masakari_client: Authenticated masakari client
+    :type masakari_client: openstack.instance_ha.v1._proxy.Proxy
+    :param host: Uuid of host to enable
+    :type host: str
+    :param segment: Uuid of segment host is associated with.
+    :type segment: str
+    """
+    logging.info("Removing maintenance mode from masakari "
+                 "host {}".format(host))
+    masakari_client.update_host(
+        host,
+        segment_id=segment,
+        **{'on_maintenance': False})
+
+
 def enable_hosts(masakari_client=None):
     """Enable all hypervisors within masakari.
 
@@ -98,12 +122,7 @@ def enable_hosts(masakari_client=None):
     for segment in masakari_client.segments():
         for host in masakari_client.hosts(segment_id=segment.uuid):
             if host.on_maintenance:
-                logging.info("Removing maintenance mode from masakari "
-                             "host {}".format(host.uuid))
-                masakari_client.update_host(
-                    host.uuid,
-                    segment_id=segment.uuid,
-                    **{'on_maintenance': False})
+                enable_host(masakari_client, host.uuid, segment.uuid)
 
 
 def _svc_control(unit_name, action, services, model_name):
